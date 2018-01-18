@@ -6,7 +6,7 @@ this library that help to packs triangles of a 3D mesh into a texture.
 * increases resource utilization
 
 # Usage
-```
+```c++
 if (!ray::uvmapper::lightmappack(
     // consecutive triangle positions
     vertices.data(), vertices.size(), 
