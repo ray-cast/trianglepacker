@@ -48,7 +48,6 @@ namespace ray
 			{
 			}
 		};
-
 		template<typename T>
 		struct Vector2
 		{
@@ -204,16 +203,16 @@ namespace ray
 			}
 		};
 
-		template<typename _Tx, typename _Ty>
+		template<typename _Tx, typename _Ty, typename std::enable_if_t<std::is_pointer_v<_Ty>>* = nullptr>
 		struct Quad
 		{
-			_Ty* t1;
-			_Ty* t2;
+			_Ty t1;
+			_Ty t2;
 
 			Vector2<_Tx> edge;
 
 			Quad() noexcept : t1(nullptr), t2(nullptr) {}
-			Quad(_Ty* _t1, _Ty* _t2) noexcept : t1(_t1), t2(_t2) { this->computeEdge(); }
+			Quad(_Ty _t1, _Ty _t2) noexcept : t1(_t1), t2(_t2) { this->computeEdge(); }
 
 			constexpr auto area() const noexcept
 			{
@@ -246,7 +245,7 @@ namespace ray
 				}
 			}
 
-			void computeEdge(_Ty* _t1, _Ty* _t2) noexcept
+			void computeEdge(_Ty _t1, _Ty _t2) noexcept
 			{
 				t1 = _t1;
 				t2 = _t2;
@@ -271,7 +270,7 @@ namespace ray
 			}
 		};
 
-		template<typename _Tx, typename _Ty>
+		template<typename _Tx, typename _Ty, typename std::enable_if_t<std::is_pointer_v<_Ty>>* = nullptr>
 		class QuadNode
 		{
 		public:
@@ -379,8 +378,8 @@ namespace ray
 
 		using triangle_t = detail::Triangle<value_t>;
 
-		using quad_t = detail::Quad<value_t, triangle_t>;
-		using quad_node_t = detail::QuadNode<value_t, triangle_t>;
+		using quad_t = detail::Quad<value_t, triangle_t*>;
+		using quad_node_t = detail::QuadNode<value_t, triangle_t*>;
 
 		using exception = detail::exception;
 		using out_of_range = detail::out_of_range;
