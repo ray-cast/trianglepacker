@@ -3,7 +3,6 @@ this library that help to packs triangles of a 3D mesh into a texture.
 ![preview.png](preview.png)
 
 # TODO
-* increases resource utilization
 * support for quad polygon
 
 # Usage
