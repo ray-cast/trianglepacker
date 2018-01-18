@@ -9,6 +9,46 @@ namespace ray
 {
 	namespace detail
 	{
+		class exception : public std::exception
+		{
+		public:
+			const int id;
+
+			virtual const char* what() const noexcept override
+			{
+				return m.what();
+			}
+
+		protected:
+			exception(int id_, const char* what_arg)
+				: id(id_), m(what_arg)
+			{}
+
+			static std::string name(const std::string& ename, int id)
+			{
+				return "[uvmapper.exception." + ename + "." + std::to_string(id) + "] ";
+			}
+
+		private:
+			std::runtime_error m;
+		};
+
+		class out_of_range : public exception
+		{
+		public:
+			static out_of_range create(int id, const std::string& what_arg)
+			{
+				std::string w = exception::name("out_of_range", id) + what_arg;
+				return out_of_range(id, w.c_str());
+			}
+
+		private:
+			out_of_range(int id_, const char* what_arg)
+				: exception(id_, what_arg)
+			{
+			}
+		};
+
 		template<typename T>
 		struct Vector2
 		{
@@ -111,38 +151,38 @@ namespace ray
 		template<typename T>
 		inline constexpr T length2(const Vector3<T>& v) noexcept { return dot(v, v); }
 
-		template<typename T>
+		template<typename T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
 		inline constexpr T length(const Vector2<T>& v) noexcept { return std::sqrt(length2(v)); }
-		template<typename T>
+		template<typename T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
 		inline constexpr T length(const Vector3<T>& v) noexcept { return std::sqrt(length2(v)); }
 
-		template<typename T>
+		template<typename T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
 		inline constexpr Vector2<T> normalize(const Vector2<T>& v) noexcept
 		{
 			T magSq = length2(v);
 			if (magSq > 0.0f)
 			{
-				T invSqrt = 1.0f / sqrt(magSq);
+				T invSqrt = 1.0f / std::sqrt(magSq);
 				return v * invSqrt;
 			}
 
 			return v;
 		}
 
-		template<typename T>
+		template<typename T, typename = std::enable_if_t<std::is_floating_point_v<T>>>
 		inline constexpr Vector3<T> normalize(const Vector3<T>& v) noexcept
 		{
 			T magSq = length2(v);
 			if (magSq > 0.0f)
 			{
-				T invSqrt = 1.0f / sqrt(magSq);
+				T invSqrt = 1.0f / std::sqrt(magSq);
 				return v * invSqrt;
 			}
 
 			return v;
 		}
 
-		template<typename T, typename index_t>
+		template<typename _Tx, typename _Ty = int>
 		struct Triangle
 		{
 			//       C           -
@@ -151,83 +191,40 @@ namespace ray
 			// B-----+--------A  -
 			// '--x--'        |
 			// '-------w------'
+			_Ty w, h, x;
 
-			index_t index;
-
-			T w, h, x;
-
-			Vector2<T> uv[3];
+			Vector2<_Tx> uv[3];
 
 			Triangle() = default;
-			Triangle(T ww, T hh, T xx, index_t _index) noexcept : index(_index), w(ww), h(hh), x(xx) {}
+			Triangle(_Ty ww, _Ty hh, _Ty xx) noexcept : w(ww), h(hh), x(xx) {}
 
-			constexpr float area() const
+			constexpr auto area() const noexcept
 			{
 				return w * h;
-			}
-		};
-
-		class exception : public std::exception
-		{
-		public:
-			const int id;
-
-			virtual const char* what() const noexcept override
-			{
-				return m.what();
-			}
-
-		protected:
-			exception(int id_, const char* what_arg)
-				: id(id_), m(what_arg)
-			{}
-
-			static std::string name(const std::string& ename, int id)
-			{
-				return "[uvmapper.exception." + ename + "." + std::to_string(id) + "] ";
-			}
-
-		private:
-			std::runtime_error m;
-		};
-
-		class out_of_range : public exception
-		{
-		public:
-			static out_of_range create(int id, const std::string& what_arg)
-			{
-				std::string w = exception::name("out_of_range", id) + what_arg;
-				return out_of_range(id, w.c_str());
-			}
-
-		private:
-			out_of_range(int id_, const char* what_arg)
-				: exception(id_, what_arg)
-			{
 			}
 		};
 
 		template<typename _Tx, typename _Ty>
 		struct Quad
 		{
-			Triangle<_Tx, _Ty>* t1;
-			Triangle<_Tx, _Ty>* t2;
+			_Ty* t1;
+			_Ty* t2;
 
 			Vector2<_Tx> edge;
 
-			Quad() noexcept : t1(nullptr), t2(nullptr) { }
-			Quad(Triangle<_Tx, _Ty>* _t1, Triangle<_Tx, _Ty>* _t2) noexcept : t1(_t1), t2(_t2) {}
+			Quad() noexcept : t1(nullptr), t2(nullptr) {}
+			Quad(_Ty* _t1, _Ty* _t2) noexcept : t1(_t1), t2(_t2) { this->computeEdge(); }
 
-			constexpr float area() const
+			constexpr auto area() const noexcept
 			{
 				return edge.x * edge.y;
 			}
 
-			void computeEdge()
+			void computeEdge() noexcept
 			{
 				if (t1 && t2)
 				{
-					float area = sqrt((t1->w * t1->h + t2->w * t2->h) * 0.5f);
+					float area = sqrt((t1->area() + t2->area()) * 0.5f);
 					edge.x = area;
 					edge.y = area;
 				}
@@ -235,21 +232,28 @@ namespace ray
 				{
 					if (t1)
 					{
-						float area = sqrt(t1->w * t1->h * 0.5f);
+						float area = sqrt(t1->area() * 0.5f);
 						edge.x = area;
 						edge.y = area;
 					}
 
 					if (t2)
 					{
-						float area = sqrt(t2->w * t2->h * 0.5f);
+						float area = sqrt(t2->area() * 0.5f);
 						edge.x = area;
 						edge.y = area;
 					}
 				}
 			}
 
-			void computeUV(_Tx margin = 0.0f)
+			void computeEdge(_Ty* _t1, _Ty* _t2) noexcept
+			{
+				t1 = _t1;
+				t2 = _t2;
+				this->computeEdge();
+			}
+
+			void computeUV(_Tx margin = 0.0f) noexcept
 			{
 				if (t1)
 				{
@@ -361,7 +365,7 @@ namespace ray
 		};
 	}
 
-	template<typename T>
+	template<typename T, typename std::enable_if_t<std::is_floating_point<T>::value>* = nullptr>
 	class basic_uvmapper
 	{
 	public:
@@ -373,10 +377,10 @@ namespace ray
 		using vec3_t = detail::Vector3<value_t>;
 		using vec4_t = detail::Vector4<value_t>;
 
-		using triangle_t = detail::Triangle<value_t, size_type>;
+		using triangle_t = detail::Triangle<value_t>;
 
-		using quad_t = detail::Quad<value_t, size_type>;
-		using quad_node_t = detail::QuadNode<value_t, size_type>;
+		using quad_t = detail::Quad<value_t, triangle_t>;
+		using quad_node_t = detail::QuadNode<value_t, triangle_t>;
 
 		using exception = detail::exception;
 		using out_of_range = detail::out_of_range;
@@ -418,7 +422,6 @@ namespace ray
 				value_t h = length((tv[maxi] + tv[nexti]) - normalize(tv[maxi]) * (w - x));
 
 				triangle_t e;
-				e.index = i * 3 + maxi;
 				e.w = std::ceil(w);
 				e.x = std::ceil(x);
 				e.h = std::ceil(h);
@@ -430,20 +433,16 @@ namespace ray
 			std::qsort(tris.data(), tris.size(), sizeof(triangle_t),
 				[](const void* a, const void* b) -> int
 			{
-				triangle_t *t1 = (triangle_t*)a;
-				triangle_t *t2 = (triangle_t*)b;
-				int dh = t2->h - t1->h;
+				auto t1 = (triangle_t*)a;
+				auto t2 = (triangle_t*)b;
+				auto dh = t2->h - t1->h;
 				return dh != 0 ? dh : (t2->w - t1->w);
 			});
 
 			std::vector<quad_t> quad(tris.size() >> 1);
 
 			for (size_type i = 0; i < quad.size() - tris.size() % 2; i++)
-			{
-				quad[i].t1 = &tris[i * 2];
-				quad[i].t2 = &tris[i * 2 + 1];
-				quad[i].computeEdge();
-			}
+				quad[i].computeEdge(&tris[i * 2], &tris[i * 2 + 1]);
 
 			if (tris.size() % 2 > 0)
 				quad.push_back(quad_t(&(*tris.rbegin()), nullptr));
