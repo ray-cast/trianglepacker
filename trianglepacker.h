@@ -1,11 +1,9 @@
 #ifndef _H_TRIANGLEPACKER_H_
 #define _H_TRIANGLEPACKER_H_
 
-#include <vector>
-#include <memory>
-#include <algorithm>
-#include <string>
-#include <iostream>
+#include <vector> // std::vector
+#include <memory> // std::unique_ptr
+#include <string> // std::to_string
 
 namespace ray
 {
@@ -163,7 +161,7 @@ namespace ray
 			Triangle() = default;
 			Triangle(T ww, T hh, T xx, index_t _index) noexcept : index(_index), w(ww), h(hh), x(xx) {}
 
-			float area() const
+			constexpr float area() const
 			{
 				return w * h;
 			}
@@ -220,7 +218,7 @@ namespace ray
 			Quad() noexcept : t1(nullptr), t2(nullptr) { }
 			Quad(Triangle<_Tx, _Ty>* _t1, Triangle<_Tx, _Ty>* _t2) noexcept : t1(_t1), t2(_t2) {}
 
-			float area() const
+			constexpr float area() const
 			{
 				return edge.x * edge.y;
 			}
@@ -387,7 +385,7 @@ namespace ray
 		basic_uvmapper(const basic_uvmapper&) = delete;
 		basic_uvmapper& operator=(basic_uvmapper&) = delete;
 
-		static bool lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, int margin, value_t* outUVs)
+		static size_type lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, value_t scaleFactory, int margin, value_t* outUVs)
 		{
 			const vec3_t* p = (const vec3_t*)positions;
 
@@ -455,7 +453,7 @@ namespace ray
 			for (auto& it : quad)
 				area += it.area();
 
-			area = std::sqrt(area) * 1.05;
+			area = std::sqrt(area) * scaleFactory;
 
 			for (auto& it : quad)
 			{
@@ -466,21 +464,50 @@ namespace ray
 			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
 			auto processed = packQuadIntoUV(quad, border);
 
-			vec2_t* uv = (vec2_t*)outUVs;
-
-			for (auto& it : tris)
+			if (outUVs)
 			{
-				(*uv++) = it.uv[0];
-				(*uv++) = it.uv[1];
-				(*uv++) = it.uv[2];
+				vec2_t* uv = (vec2_t*)outUVs;
+
+				for (auto& it : tris)
+				{
+					(*uv++) = it.uv[0];
+					(*uv++) = it.uv[1];
+					(*uv++) = it.uv[2];
+				}
 			}
 
-			return true;
+			return processed * 2 * 3;
+		}
+
+		static bool lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, int margin, value_t* outUVs)
+		{
+			float testScale = 1.0f;
+			size_type processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, 0);
+			int decrease = processed < vertexCount ? 0 : 1;
+
+			if (decrease)
+			{
+				while (!(processed < vertexCount))
+				{
+					testScale *= 0.99;
+					processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, 0);
+				}
+			}
+
+			for (int j = 0; processed < vertexCount && j < 16; j++)
+			{
+				testScale += 0.022;
+				processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, 0);
+			}
+
+			processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, outUVs);
+
+			return processed == vertexCount;
 		}
 
 	private:
 
-		static constexpr size_type packQuadIntoUV(const std::vector<quad_t>& quad, const vec2_t& margin)
+		static size_type packQuadIntoUV(const std::vector<quad_t>& quad, const vec2_t& margin)
 		{
 			size_type nums = 0;
 
