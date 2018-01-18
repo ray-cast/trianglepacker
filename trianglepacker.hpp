@@ -462,7 +462,17 @@ namespace ray
 			}
 
 			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
-			auto processed = packQuadIntoUV(quad, border);
+
+			size_type processed = 0;
+
+			quad_node_t root;
+
+			for (auto& it : quad)
+			{
+				if (!root.insert(it, border))
+					break;
+				processed++;
+			}
 
 			if (outUVs)
 			{
@@ -476,12 +486,12 @@ namespace ray
 				}
 			}
 
-			return processed * 2 * 3;
+			return processed * 2 * 3; // 2 triangle, 3 vertices
 		}
 
 		static bool lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, int margin, value_t* outUVs)
 		{
-			float testScale = 1.0f;
+			value_t testScale = 1.0f;
 			size_type processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, 0);
 			int decrease = processed < vertexCount ? 0 : 1;
 
@@ -505,22 +515,22 @@ namespace ray
 			return processed == vertexCount;
 		}
 
-	private:
-
-		static size_type packQuadIntoUV(const std::vector<quad_t>& quad, const vec2_t& margin)
+		template<typename index_t = short>
+		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
 		{
-			size_type nums = 0;
+			const vec3_t* vertices = (const vec3_t*)outVertices;
 
-			quad_node_t root;
-
-			for (auto& it : quad)
+			for (size_type i = 0; i < indexCount; i++, indices = ((char*)indices) + indexStride;)
 			{
-				if (!root.insert(it, margin))
-					break;
-				nums++;
+				auto n = indices[i] * 3;
+				value_t x = positions[n];
+				value_t y = positions[n + 1];
+				value_t z = positions[n + 2];
+
+				vertices[i] = vec3_t(x, y, z);
 			}
 
-			return nums;
+			return lightmappack(outVertices, indexCount, width, height, scale, margin, outUVs);
 		}
 	};
 
