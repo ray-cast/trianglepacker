@@ -195,11 +195,40 @@ namespace ray
 			Vector2<_Tx> uv[3];
 
 			Triangle() = default;
-			Triangle(_Ty ww, _Ty hh, _Ty xx) noexcept : w(ww), h(hh), x(xx) {}
+			Triangle(_Ty ww, _Ty hh, _Ty xx) noexcept : w(ww), h(hh), x(xx) { std::memset(this->uv, 0, sizeof(this->uv)); }
+			Triangle(Vector3<_Tx> v1, Vector3<_Tx> v2, Vector3<_Tx> v3) noexcept { this->compute(v1, v2, v3); }
 
 			constexpr auto area() const noexcept
 			{
 				return w * h;
+			}
+
+			void compute(Vector3<_Tx> v1, Vector3<_Tx> v2, Vector3<_Tx> v3) noexcept
+			{
+				Vector3<_Tx> tv[3];
+				tv[0] = v2 - v1;
+				tv[1] = v3 - v2;
+				tv[2] = v1 - v3;
+
+				_Tx len2[3];
+				len2[0] = length2(tv[0]);
+				len2[1] = length2(tv[1]);
+				len2[2] = length2(tv[2]);
+
+				std::uint8_t maxi; _Tx maxl = len2[0]; maxi = 0;
+				if (len2[1] > maxl) { maxl = len2[1]; maxi = 1; }
+				if (len2[2] > maxl) { maxl = len2[2]; maxi = 2; }
+				std::uint8_t nexti = (maxi + 1) % 3;
+
+				_Tx ww = std::sqrt(maxl);
+				_Tx xx = -dot(tv[maxi], tv[nexti]) / ww;
+				_Tx hh = length((tv[maxi] + tv[nexti]) - normalize(tv[maxi]) * (ww - xx));
+
+				this->w = std::ceil(ww);
+				this->x = std::ceil(xx);
+				this->h = std::ceil(hh);
+
+				std::memset(this->uv, 0, sizeof(this->uv));
 			}
 		};
 
@@ -401,36 +430,10 @@ namespace ray
 				tp[1] = p[i * 3 + 1] * scale;
 				tp[2] = p[i * 3 + 2] * scale;
 
-				vec3_t tv[3];
-				tv[0] = tp[1] - tp[0];
-				tv[1] = tp[2] - tp[1];
-				tv[2] = tp[0] - tp[2];
-
-				value_t len2[3];
-				len2[0] = length2(tv[0]);
-				len2[1] = length2(tv[1]);
-				len2[2] = length2(tv[2]);
-
-				int maxi; value_t maxl = len2[0]; maxi = 0;
-				if (len2[1] > maxl) { maxl = len2[1]; maxi = 1; }
-				if (len2[2] > maxl) { maxl = len2[2]; maxi = 2; }
-				int nexti = (maxi + 1) % 3;
-
-				value_t w = std::sqrt(maxl);
-				value_t x = -dot(tv[maxi], tv[nexti]) / w;
-				value_t h = length((tv[maxi] + tv[nexti]) - normalize(tv[maxi]) * (w - x));
-
-				triangle_t e;
-				e.w = std::ceil(w);
-				e.x = std::ceil(x);
-				e.h = std::ceil(h);
-				std::memset(e.uv, 0, sizeof(e.uv));
-
-				tris[i] = e;
+				tris[i].compute(tp[0], tp[1], tp[2]);
 			}
 
-			std::qsort(tris.data(), tris.size(), sizeof(triangle_t),
-				[](const void* a, const void* b) -> int
+			std::qsort(tris.data(), tris.size(), sizeof(triangle_t), [](const void* a, const void* b) -> int
 			{
 				auto t1 = (triangle_t*)a;
 				auto t2 = (triangle_t*)b;
