@@ -260,14 +260,14 @@ namespace ray
 				{
 					if (t1)
 					{
-						float area = sqrt(t1->area() * 0.5f);
+						float area = sqrt(t1->area());
 						edge.x = area;
 						edge.y = area;
 					}
 
 					if (t2)
 					{
-						float area = sqrt(t2->area() * 0.5f);
+						float area = sqrt(t2->area());
 						edge.x = area;
 						edge.y = area;
 					}
@@ -519,17 +519,11 @@ namespace ray
 		template<typename index_t = short>
 		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
 		{
-			const vec3_t* vertices = (const vec3_t*)outVertices;
+			auto pos = (const vec3_t*)positions;
+			auto vertices = (vec3_t*)outVertices;
 
-			for (size_type i = 0; i < indexCount; i++, indices = ((char*)indices) + indexStride;)
-			{
-				auto n = indices[i] * 3;
-				value_t x = positions[n];
-				value_t y = positions[n + 1];
-				value_t z = positions[n + 2];
-
-				vertices[i] = vec3_t(x, y, z);
-			}
+			for (size_type i = 0; i < indexCount; i++, indices = (index_t*)(((char*)indices) + indexStride))
+				vertices[i] = pos[*indices];
 
 			return lightmappack(outVertices, indexCount, width, height, scale, margin, outUVs);
 		}
