@@ -4,6 +4,7 @@
 #include <vector> // std::vector
 #include <memory> // std::unique_ptr
 #include <string> // std::to_string
+#include <algorithm> // std::sort
 
 namespace ray
 {
@@ -181,71 +182,94 @@ namespace ray
 			return v;
 		}
 
-		template<typename _Tx, typename _Ty = int>
+		template<typename _Tx, typename _Ty>
 		struct Triangle
 		{
 			//       C           -
 			//     * |  *        | h
 			//   *   |     *     |
 			// B-----+--------A  -
-			// '--x--'        |
 			// '-------w------'
-			_Ty w, h, x;
-
-			Vector2<_Tx> uv[3];
+			_Tx w, h;
+			_Ty indices[3];
 
 			Triangle() = default;
-			Triangle(_Ty ww, _Ty hh, _Ty xx) noexcept : w(ww), h(hh), x(xx) { std::memset(this->uv, 0, sizeof(this->uv)); }
-			Triangle(Vector3<_Tx> v1, Vector3<_Tx> v2, Vector3<_Tx> v3) noexcept { this->compute(v1, v2, v3); }
+			Triangle(_Tx ww, _Tx hh, _Ty i1, _Ty i2, _Ty i3) noexcept : w(ww), h(hh) { indices[0] = i1; indices[1] = i2; indices[2] = i3; }
+
+			template<typename T>
+			Triangle(const Vector3<T>& v1, const Vector3<T>& v2, const Vector3<T>& v3, _Ty i1, _Ty i2, _Ty i3) noexcept { indices[0] = i1; indices[1] = i2; indices[2] = i3; this->compute(v1, v2, v3); }
 
 			constexpr auto area() const noexcept
 			{
 				return w * h;
 			}
 
-			void compute(Vector3<_Tx> v1, Vector3<_Tx> v2, Vector3<_Tx> v3) noexcept
+			template<typename T>
+			void compute(const Vector3<T>& v1, const Vector3<T>& v2, const Vector3<T>& v3) noexcept
 			{
-				Vector3<_Tx> tv[3];
+				Vector3<T> tv[3];
 				tv[0] = v2 - v1;
 				tv[1] = v3 - v2;
 				tv[2] = v1 - v3;
 
-				_Tx len2[3];
+				T len2[3];
 				len2[0] = length2(tv[0]);
 				len2[1] = length2(tv[1]);
 				len2[2] = length2(tv[2]);
 
-				std::uint8_t maxi; _Tx maxl = len2[0]; maxi = 0;
+				std::uint8_t maxi; T maxl = len2[0]; maxi = 0;
 				if (len2[1] > maxl) { maxl = len2[1]; maxi = 1; }
 				if (len2[2] > maxl) { maxl = len2[2]; maxi = 2; }
 				std::uint8_t nexti = (maxi + 1) % 3;
 
-				_Tx ww = std::sqrt(maxl);
-				_Tx xx = -dot(tv[maxi], tv[nexti]) / ww;
-				_Tx hh = length((tv[maxi] + tv[nexti]) - normalize(tv[maxi]) * (ww - xx));
+				T ww = std::sqrt(maxl);
+				T xx = -dot(tv[maxi], tv[nexti]) / ww;
+				T hh = length((tv[maxi] + tv[nexti]) - normalize(tv[maxi]) * (ww - xx));
 
 				this->w = std::ceil(ww);
-				this->x = std::ceil(xx);
 				this->h = std::ceil(hh);
-
-				std::memset(this->uv, 0, sizeof(this->uv));
 			}
 		};
 
 		template<typename _Tx, typename _Ty, typename std::enable_if_t<std::is_pointer_v<_Ty>>* = nullptr>
-		struct Quad
+		class Quad
 		{
+		public:
 			_Ty t1;
 			_Ty t2;
 
 			Vector2<_Tx> edge;
+			Vector2<_Tx> uv[6];
+			Vector2<_Tx> margin;
 
-			Quad() noexcept : t1(nullptr), t2(nullptr) {}
-			Quad(_Ty _t1, _Ty _t2) noexcept : t1(_t1), t2(_t2) { this->computeEdge(); }
+			Quad() noexcept :  t1(nullptr), t2(nullptr), margin(0.0, 0.0) { std::memset(uv, 0, sizeof(uv)); }
+			Quad(_Ty _t1, _Ty _t2) noexcept : t1(_t1), t2(_t2), margin(0, 0) { std::memset(uv, 0, sizeof(uv)); this->computeEdge(); }
+			Quad(_Ty _t1, _Ty _t2, const Vector2<_Tx>& _margin) noexcept : t1(_t1), t2(_t2), margin(_margin) { std::memset(uv, 0, sizeof(uv)); this->computeEdge(); }
 
 			constexpr auto area() const noexcept
 			{
 				return edge.x * edge.y;
+			}
+
+			void translate(const Vector2<_Tx>& offset) noexcept
+			{
+				uv[0] += offset;
+				uv[1] += offset;
+				uv[2] += offset;
+				uv[3] += offset;
+				uv[4] += offset;
+				uv[5] += offset;
+			}
+
+			void computeUV() noexcept
+			{
+				uv[0] = Vector2<_Tx>(0.0f, margin.y);
+				uv[1] = Vector2<_Tx>(0.0f, edge.y);
+				uv[2] = Vector2<_Tx>(edge.x - margin.x, edge.y);
+
+				uv[3] = Vector2<_Tx>(edge.x, edge.y - margin.y);
+				uv[4] = Vector2<_Tx>(edge.x, 0.0f);
+				uv[5] = Vector2<_Tx>(margin.x, 0.0f);
 			}
 
 			void computeEdge() noexcept
@@ -273,30 +297,6 @@ namespace ray
 					}
 				}
 			}
-
-			void computeEdge(_Ty _t1, _Ty _t2) noexcept
-			{
-				t1 = _t1;
-				t2 = _t2;
-				this->computeEdge();
-			}
-
-			void computeUV(_Tx margin = 0.0f) noexcept
-			{
-				if (t1)
-				{
-					t1->uv[0] = Vector2<_Tx>(0.0f, margin);
-					t1->uv[1] = Vector2<_Tx>(0.0f, edge.y);
-					t1->uv[2] = Vector2<_Tx>(edge.x - margin, edge.y);
-				}
-
-				if (t2)
-				{
-					t2->uv[0] = Vector2<_Tx>(margin, 0.0f);
-					t2->uv[1] = Vector2<_Tx>(edge.x, edge.y - margin);
-					t2->uv[2] = Vector2<_Tx>(edge.x, 0.0f);
-				}
-			}
 		};
 
 		template<typename _Tx, typename _Ty, typename std::enable_if_t<std::is_pointer_v<_Ty>>* = nullptr>
@@ -307,7 +307,7 @@ namespace ray
 			QuadNode(const QuadNode&) = delete;
 			QuadNode& operator=(QuadNode&) = delete;
 
-			QuadNode* insert(const Quad<_Tx, _Ty>& q, const Vector2<_Tx>& margin, bool write = true)
+			QuadNode* insert(Quad<_Tx, _Ty>& q, const Vector2<_Tx>& margin, bool write = true)
 			{
 				if (_child[0] && _child[1])
 				{
@@ -324,19 +324,7 @@ namespace ray
 						if (write)
 						{
 							Vector2<_Tx> offset(_rect.x, _rect.y);
-							if (q.t1)
-							{
-								q.t1->uv[0] += offset;
-								q.t1->uv[1] += offset;
-								q.t1->uv[2] += offset;
-							}
-
-							if (q.t2)
-							{
-								q.t2->uv[0] += offset;
-								q.t2->uv[1] += offset;
-								q.t2->uv[2] += offset;
-							}
+							q.translate(offset);
 						}
 
 						return this;
@@ -368,19 +356,7 @@ namespace ray
 					if (write)
 					{
 						Vector2<_Tx> offset(_rect.x, _rect.y);
-						if (q.t1)
-						{
-							q.t1->uv[0] += offset;
-							q.t1->uv[1] += offset;
-							q.t1->uv[2] += offset;
-						}
-
-						if (q.t2)
-						{
-							q.t2->uv[0] += offset;
-							q.t2->uv[1] += offset;
-							q.t2->uv[2] += offset;
-						}
+						q.translate(offset);
 					}
 
 					return this;
@@ -405,7 +381,7 @@ namespace ray
 		using vec3_t = detail::Vector3<value_t>;
 		using vec4_t = detail::Vector4<value_t>;
 
-		using triangle_t = detail::Triangle<value_t>;
+		using triangle_t = detail::Triangle<int, int>;
 
 		using quad_t = detail::Quad<value_t, triangle_t*>;
 		using quad_node_t = detail::QuadNode<value_t, triangle_t*>;
@@ -430,6 +406,9 @@ namespace ray
 				tp[1] = p[i * 3 + 1] * scale;
 				tp[2] = p[i * 3 + 2] * scale;
 
+				tris[i].indices[0] = i * 3 + 0;
+				tris[i].indices[1] = i * 3 + 1;
+				tris[i].indices[2] = i * 3 + 2;
 				tris[i].compute(tp[0], tp[1], tp[2]);
 			}
 
@@ -449,6 +428,9 @@ namespace ray
 				tp[1] = p[i * 3 + 1] * scale;
 				tp[2] = p[i * 3 + 2] * scale;
 
+				tris[i].indices[0] = i * 3 + 0;
+				tris[i].indices[1] = i * 3 + 1;
+				tris[i].indices[2] = i * 3 + 2;
 				tris[i].compute(tp[0], tp[1], tp[2]);
 			}
 
@@ -464,17 +446,80 @@ namespace ray
 		template<typename index_t = short>
 		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
 		{
-			auto pos = (const vec3_t*)positions;
+			auto p = (const vec3_t*)positions;
 			auto vertices = (vec3_t*)outVertices;
+			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
 
-			for (size_type i = 0; i < indexCount; i++, indices = (index_t*)(((char*)indices) + indexStride))
-				vertices[i] = pos[*indices];
+			std::vector<triangle_t> tris(indexCount / 3);
+			std::vector<quad_t> quad(indexCount / 6);
 
-			return lightmappack(outVertices, indexCount, width, height, scale, margin, outUVs);
+			for (size_type index = 0, i = 0; i < quad.size(); i++)
+			{
+				auto v1 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
+				auto v2 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
+				auto v3 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
+
+				auto v4 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
+				auto v5 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
+				auto v6 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
+
+				if (v3 == v4 && v1 == v6)
+				{
+					*vertices = p[v1]; vertices++;
+					*vertices = p[v2]; vertices++;
+					*vertices = p[v3]; vertices++;
+					*vertices = p[v5]; vertices++;
+
+					vec3_t tp[4];
+					tp[0] = p[v1] * scale;
+					tp[1] = p[v2] * scale;
+					tp[2] = p[v3] * scale;
+					tp[3] = p[v5] * scale;
+
+					tris[i * 2 + 0] = triangle_t(tp[0], tp[1], tp[2], index + 0, index + 1, index + 2);
+					tris[i * 2 + 1] = triangle_t(tp[2], tp[3], tp[0], index + 2, index + 3, index + 0);
+
+					index += 4;
+
+					quad[i] = quad_t(&tris[i * 2], &tris[i * 2 + 1]);
+				}
+				else
+				{
+					*vertices = p[v1]; vertices++;
+					*vertices = p[v2]; vertices++;
+					*vertices = p[v3]; vertices++;
+					*vertices = p[v4]; vertices++;
+					*vertices = p[v5]; vertices++;
+					*vertices = p[v6]; vertices++;
+
+					vec3_t tp[6];
+					tp[0] = p[v1] * scale;
+					tp[1] = p[v2] * scale;
+					tp[2] = p[v3] * scale;
+					tp[3] = p[v4] * scale;
+					tp[4] = p[v5] * scale;
+					tp[5] = p[v6] * scale;
+
+					auto n = tris.size();
+					tris[i * 2 + 0] = triangle_t(tp[0], tp[1], tp[2], index + 0, index + 1, index + 2);
+					tris[i * 2 + 1] = triangle_t(tp[3], tp[4], tp[5], index + 3, index + 4, index + 5);
+
+					index += 6;
+
+					quad[i] = quad_t(&tris[i * 2], &tris[i * 2 + 1], border);
+				}
+			}
+
+			std::sort(quad.begin(), quad.end(), [](const quad_t& a, const quad_t& b)->bool
+			{
+				return a.area() > b.area();
+			});
+
+			return lightmappack(quad, width, height, scale, margin, outUVs) == quad.size();
 		}
 
 	private:
-		static size_type lightmappack(std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin)
+		static size_type lightmappack(std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin, value_t* outUVs)
 		{
 			value_t area = 0;
 
@@ -486,21 +531,51 @@ namespace ray
 			for (auto& it : quad)
 			{
 				it.edge /= area;
-				it.computeUV((value_t)margin.x * 0.5f);
+				it.computeUV();
 			}
 
 			quad_node_t root;
 
+			bool write = outUVs ? true : false;
+
 			for (std::size_t i = 0; i < quad.size(); i++)
 			{
-				if (!root.insert(quad[i], margin))
+				if (!root.insert(quad[i], margin, write))
 					return (i + 1);
+			}
+
+			if (outUVs)
+			{
+				vec2_t* uv = (vec2_t*)outUVs;
+
+				for (auto& it : quad)
+				{
+					if (it.t1)
+					{
+						uv[it.t1->indices[0]] = it.uv[0];
+						uv[it.t1->indices[1]] = it.uv[1];
+						uv[it.t1->indices[2]] = it.uv[2];
+					}
+
+					if (it.t2)
+					{
+						uv[it.t2->indices[0]] = it.uv[3];
+						uv[it.t2->indices[1]] = it.uv[4];
+						uv[it.t2->indices[2]] = it.uv[5];
+					}
+				}
 			}
 
 			return quad.size();
 		}
 
-		static size_type lightmappack(const std::vector<triangle_t>& triangles, int width, int height, value_t scale, value_t scalefactor, int margin, value_t* outUVs)
+		static size_type lightmappack(const std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin, value_t* outUVs)
+		{
+			std::vector<quad_t> quad2 = quad;
+			return lightmappack(quad2, width, height, scale, scalefactor, margin, outUVs);
+		}
+
+		static size_type lightmappack(const std::vector<triangle_t>& triangles, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin, value_t* outUVs)
 		{
 			std::vector<triangle_t> tris = triangles;
 
@@ -515,25 +590,17 @@ namespace ray
 			std::vector<quad_t> quad(tris.size() >> 1);
 
 			for (size_type i = 0; i < quad.size() - tris.size() % 2; i++)
-				quad[i].computeEdge(&tris[i * 2], &tris[i * 2 + 1]);
+			{
+				quad[i].t1 = &tris[i * 2];
+				quad[i].t2 = &tris[i * 2 + 1];
+				quad[i].margin = margin;
+				quad[i].computeEdge();
+			}
 
 			if (tris.size() % 2 > 0)
 				quad.push_back(quad_t(&(*tris.rbegin()), nullptr));
 
-			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
-			auto processed = lightmappack(quad, width, height, scale, scalefactor, border) * 2;
-
-			if (outUVs)
-			{
-				vec2_t* uv = (vec2_t*)outUVs;
-
-				for (auto& it : tris)
-				{
-					(*uv++) = it.uv[0];
-					(*uv++) = it.uv[1];
-					(*uv++) = it.uv[2];
-				}
-			}
+			auto processed = lightmappack(quad, width, height, scale, scalefactor, margin, outUVs) * 2;
 
 			return tris.size() % 2 > 0 ? processed-- : processed;
 		}
@@ -541,14 +608,16 @@ namespace ray
 		static size_type lightmappack(const std::vector<triangle_t>& tris, int width, int height, value_t scale, int margin, value_t* outUVs)
 		{
 			value_t testScale = 1.0f;
-			size_type processed = lightmappack(tris, width, height, scale, testScale, margin, 0);
+			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
+
+			size_type processed = lightmappack(tris, width, height, scale, testScale, border, 0);
 
 			if (processed > tris.size())
 			{
 				for (std::uint8_t j = 0; processed > tris.size() && j < 16; j++)
 				{
 					testScale -= 0.022;
-					processed = lightmappack(tris, width, height, scale, testScale, margin, 0);
+					processed = lightmappack(tris, width, height, scale, testScale, border, 0);
 				}
 			}
 			else
@@ -556,11 +625,38 @@ namespace ray
 				for (std::uint8_t j = 0; processed < tris.size() && j < 16; j++)
 				{
 					testScale += 0.022;
-					processed = lightmappack(tris, width, height, scale, testScale, margin, 0);
+					processed = lightmappack(tris, width, height, scale, testScale, border, 0);
 				}
 			}
 
-			return lightmappack(tris, width, height, scale, testScale, margin, outUVs);
+			return lightmappack(tris, width, height, scale, testScale, border, outUVs);
+		}
+
+		static size_type lightmappack(const std::vector<quad_t>& quad, int width, int height, value_t scale, int margin, value_t* outUVs)
+		{
+			value_t testScale = 1.0f;
+			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
+
+			size_type processed = lightmappack(quad, width, height, scale, testScale, border, 0);
+
+			if (processed > quad.size())
+			{
+				for (std::uint8_t j = 0; processed > quad.size() && j < 16; j++)
+				{
+					testScale -= 0.022;
+					processed = lightmappack(quad, width, height, scale, testScale, border, 0);
+				}
+			}
+			else
+			{
+				for (std::uint8_t j = 0; processed < quad.size() && j < 16; j++)
+				{
+					testScale += 0.022;
+					processed = lightmappack(quad, width, height, scale, testScale, border, 0);
+				}
+			}
+
+			return lightmappack(quad, width, height, scale, testScale, border, outUVs);
 		}
 	};
 

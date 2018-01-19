@@ -2,9 +2,6 @@
 this library that help to packs triangles of a 3D mesh into a texture.
 ![preview.png](preview.png)
 
-# TODO
-* support for quad polygon
-
 # Usage
 ```c++
 #include "trianglepacker.hpp"
