@@ -7,6 +7,8 @@ this library that help to packs triangles of a 3D mesh into a texture.
 
 # Usage
 ```c++
+std::vector<float2> uvs(vertices.size());
+
 if (!ray::uvmapper::lightmappack(
     // consecutive triangle positions
     vertices.data(), vertices.size(), 
@@ -19,7 +21,7 @@ if (!ray::uvmapper::lightmappack(
     // output (a normalized uv coordinate for each input vertex):
     uvs.data()))
 {
-    std::cerr << stderr, "Failed to pack all triangles into the map!\n";
+    std::cerr << "Failed to pack all triangles into the map!" << std::endl;
     return false;
 }
 ```
