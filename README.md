@@ -14,25 +14,25 @@ std::vector<float2> uvs(vertices.size());
 
 try
 {
-	if (!ray::uvmapper::lightmappack(
-	    // consecutive triangle positions
-	    vertices.data(), vertices.size(), 
-	    // resolution
-	    512, 512, 
-	    // scale the vertices
-	    1.0, 
-	    // margin
-	    1, 
-	    // output (a normalized uv coordinate for each input vertex):
-	    uvs.data()))
-	{
-	    std::cerr << "Failed to pack all triangles into the map!" << std::endl;
-	    return false;
-	}
+  if (!ray::uvmapper::lightmappack(
+      // consecutive triangle positions
+      vertices.data(), vertices.size(), 
+      // resolution
+      512, 512, 
+      // scale the vertices
+      1.0, 
+      // margin
+      1, 
+      // output (a normalized uv coordinate for each input vertex):
+      uvs.data()))
+  {
+      std::cerr << "Failed to pack all triangles into the map!" << std::endl;
+      return false;
+  }
 }
 catch (const ray::uvmapper::exception& e)
 {
-	std::cerr << e.what() << std::endl;
+  std::cerr << e.what() << std::endl;
 }
 ```
 
