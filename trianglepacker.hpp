@@ -474,7 +474,7 @@ namespace ray
 		}
 
 	private:
-		static size_type lightmappack(std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, int margin)
+		static size_type lightmappack(std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin)
 		{
 			value_t area = 0;
 
@@ -486,23 +486,18 @@ namespace ray
 			for (auto& it : quad)
 			{
 				it.edge /= area;
-				it.computeUV((value_t)margin / width * 0.5f);
+				it.computeUV((value_t)margin.x * 0.5f);
 			}
-
-			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
-
-			size_type processed = 0;
 
 			quad_node_t root;
 
-			for (auto& it : quad)
+			for (std::size_t i = 0; i < quad.size(); i++)
 			{
-				if (!root.insert(it, border))
-					break;
-				processed++;
+				if (!root.insert(quad[i], margin))
+					return (i + 1);
 			}
 
-			return processed;
+			return quad.size();
 		}
 
 		static size_type lightmappack(const std::vector<triangle_t>& triangles, int width, int height, value_t scale, value_t scalefactor, int margin, value_t* outUVs)
@@ -525,10 +520,8 @@ namespace ray
 			if (tris.size() % 2 > 0)
 				quad.push_back(quad_t(&(*tris.rbegin()), nullptr));
 
-			auto processed = lightmappack(quad, width, height, scale, scalefactor, margin) * 2;
-
-			if (tris.size() % 2 > 0)
-				processed--;
+			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
+			auto processed = lightmappack(quad, width, height, scale, scalefactor, border) * 2;
 
 			if (outUVs)
 			{
@@ -542,7 +535,7 @@ namespace ray
 				}
 			}
 
-			return processed;
+			return tris.size() % 2 > 0 ? processed-- : processed;
 		}
 
 		static size_type lightmappack(const std::vector<triangle_t>& tris, int width, int height, value_t scale, int margin, value_t* outUVs)
