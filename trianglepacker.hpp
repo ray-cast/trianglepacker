@@ -49,6 +49,7 @@ namespace ray
 			{
 			}
 		};
+
 		template<typename T>
 		struct Vector2
 		{
@@ -194,10 +195,23 @@ namespace ray
 			_Ty indices[3];
 
 			Triangle() = default;
-			Triangle(_Tx ww, _Tx hh, _Ty i1, _Ty i2, _Ty i3) noexcept : w(ww), h(hh) { indices[0] = i1; indices[1] = i2; indices[2] = i3; }
+			Triangle(_Tx ww, _Tx hh, _Ty i1, _Ty i2, _Ty i3) noexcept
+				: w(ww)
+				, h(hh)
+			{
+				indices[0] = i1;
+				indices[1] = i2;
+				indices[2] = i3;
+			}
 
 			template<typename T>
-			Triangle(const Vector3<T>& v1, const Vector3<T>& v2, const Vector3<T>& v3, _Ty i1, _Ty i2, _Ty i3) noexcept { indices[0] = i1; indices[1] = i2; indices[2] = i3; this->compute(v1, v2, v3); }
+			Triangle(const Vector3<T>& v1, const Vector3<T>& v2, const Vector3<T>& v3, _Ty i1, _Ty i2, _Ty i3) noexcept
+			{
+				indices[0] = i1;
+				indices[1] = i2;
+				indices[2] = i3;
+				this->compute(v1, v2, v3);
+			}
 
 			constexpr auto area() const noexcept
 			{
@@ -222,9 +236,9 @@ namespace ray
 				if (len2[2] > maxl) { maxl = len2[2]; maxi = 2; }
 				std::uint8_t nexti = (maxi + 1) % 3;
 
-				T ww = std::sqrt(maxl);
-				T xx = -dot(tv[maxi], tv[nexti]) / ww;
-				T hh = length((tv[maxi] + tv[nexti]) - normalize(tv[maxi]) * (ww - xx));
+				auto ww = std::sqrt(maxl);
+				auto xx = -dot(tv[maxi], tv[nexti]) / ww;
+				auto hh = length((tv[maxi] + tv[nexti]) - normalize(tv[maxi]) * (ww - xx));
 
 				this->w = std::ceil(ww);
 				this->h = std::ceil(hh);
@@ -235,14 +249,13 @@ namespace ray
 		class Quad
 		{
 		public:
-			_Ty t1;
-			_Ty t2;
+			_Ty t1, t2;
 
 			Vector2<_Tx> edge;
 			Vector2<_Tx> uv[6];
 			Vector2<_Tx> margin;
 
-			Quad() noexcept :  t1(nullptr), t2(nullptr), margin(0.0, 0.0) { std::memset(uv, 0, sizeof(uv)); }
+			Quad() noexcept : t1(nullptr), t2(nullptr), margin(0, 0) { std::memset(uv, 0, sizeof(uv)); }
 			Quad(_Ty _t1, _Ty _t2) noexcept : t1(_t1), t2(_t2), margin(0, 0) { std::memset(uv, 0, sizeof(uv)); this->computeEdge(); }
 			Quad(_Ty _t1, _Ty _t2, const Vector2<_Tx>& _margin) noexcept : t1(_t1), t2(_t2), margin(_margin) { std::memset(uv, 0, sizeof(uv)); this->computeEdge(); }
 
@@ -263,20 +276,20 @@ namespace ray
 
 			void computeUV() noexcept
 			{
-				uv[0] = Vector2<_Tx>(0.0f, margin.y);
-				uv[1] = Vector2<_Tx>(0.0f, edge.y);
+				uv[0] = Vector2<_Tx>(0, margin.y);
+				uv[1] = Vector2<_Tx>(0, edge.y);
 				uv[2] = Vector2<_Tx>(edge.x - margin.x, edge.y);
 
 				uv[3] = Vector2<_Tx>(edge.x, edge.y - margin.y);
-				uv[4] = Vector2<_Tx>(edge.x, 0.0f);
-				uv[5] = Vector2<_Tx>(margin.x, 0.0f);
+				uv[4] = Vector2<_Tx>(edge.x, 0);
+				uv[5] = Vector2<_Tx>(margin.x, 0);
 			}
 
 			void computeEdge() noexcept
 			{
 				if (t1 && t2)
 				{
-					float area = sqrt((t1->area() + t2->area()) * 0.5f);
+					auto area = sqrt((t1->area() + t2->area()) / 2);
 					edge.x = area;
 					edge.y = area;
 				}
@@ -284,14 +297,14 @@ namespace ray
 				{
 					if (t1)
 					{
-						float area = sqrt(t1->area());
+						auto area = sqrt(t1->area());
 						edge.x = area;
 						edge.y = area;
 					}
 
 					if (t2)
 					{
-						float area = sqrt(t2->area());
+						auto area = sqrt(t2->area());
 						edge.x = area;
 						edge.y = area;
 					}
@@ -303,9 +316,8 @@ namespace ray
 		class QuadNode
 		{
 		public:
-			QuadNode() noexcept : _rect(0.0f, 0.0f, 1.0f, 1.0f) {}
-			QuadNode(const QuadNode&) = delete;
-			QuadNode& operator=(QuadNode&) = delete;
+			QuadNode() noexcept : _rect(0, 0, 1, 1) {}
+			QuadNode(const Vector4<_Tx>& rect) noexcept : _rect(rect) {}
 
 			QuadNode* insert(Quad<_Tx, _Ty>& q, const Vector2<_Tx>& margin, bool write = true)
 			{
@@ -362,6 +374,10 @@ namespace ray
 					return this;
 				}
 			}
+
+		private:
+			QuadNode(const QuadNode&) = delete;
+			QuadNode& operator=(QuadNode&) = delete;
 
 		private:
 			Vector4<_Tx> _rect;
@@ -500,7 +516,6 @@ namespace ray
 					tp[4] = p[v5] * scale;
 					tp[5] = p[v6] * scale;
 
-					auto n = tris.size();
 					tris[i * 2 + 0] = triangle_t(tp[0], tp[1], tp[2], index + 0, index + 1, index + 2);
 					tris[i * 2 + 1] = triangle_t(tp[3], tp[4], tp[5], index + 3, index + 4, index + 5);
 
