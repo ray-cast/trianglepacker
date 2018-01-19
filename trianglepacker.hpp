@@ -417,7 +417,7 @@ namespace ray
 		basic_uvmapper(const basic_uvmapper&) = delete;
 		basic_uvmapper& operator=(basic_uvmapper&) = delete;
 
-		static size_type lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, value_t scaleFactory, int margin, value_t* outUVs)
+		static size_type lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, value_t scalefactor, int margin, value_t* outUVs)
 		{
 			const vec3_t* p = (const vec3_t*)positions;
 
@@ -454,7 +454,7 @@ namespace ray
 			for (auto& it : quad)
 				area += it.area();
 
-			area = std::sqrt(area) * scaleFactory;
+			area = std::sqrt(area) * scalefactor;
 
 			for (auto& it : quad)
 			{
