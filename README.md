@@ -1,6 +1,7 @@
 # trianglepacker
 this library that help to packs triangles of a 3D mesh into a texture.
-![preview.png](preview.png)
+![preview1.png](https://github.com/ray-cast/trianglepacker/raw/master/preview1.png)
+![preview2.png](https://github.com/ray-cast/trianglepacker/raw/master/preview2.png)
 
 # Usage
 ```c++
