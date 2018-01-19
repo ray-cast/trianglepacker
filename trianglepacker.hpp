@@ -417,7 +417,7 @@ namespace ray
 		basic_uvmapper(const basic_uvmapper&) = delete;
 		basic_uvmapper& operator=(basic_uvmapper&) = delete;
 
-		static size_type lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, value_t scalefactor, int margin, value_t* outUVs)
+		static bool lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, value_t scalefactor, int margin, value_t* outUVs)
 		{
 			const vec3_t* p = (const vec3_t*)positions;
 
@@ -433,22 +433,49 @@ namespace ray
 				tris[i].compute(tp[0], tp[1], tp[2]);
 			}
 
-			std::qsort(tris.data(), tris.size(), sizeof(triangle_t), [](const void* a, const void* b) -> int
+			return lightmappack(tris, width, height, scale, scalefactor, margin, outUVs) == tris.size();
+		}
+
+		static bool lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, int margin, value_t* outUVs)
+		{
+			const vec3_t* p = (const vec3_t*)positions;
+
+			std::vector<triangle_t> tris(vertexCount / 3);
+
+			for (size_type i = 0; i < tris.size(); i++)
 			{
-				auto t1 = (triangle_t*)a;
-				auto t2 = (triangle_t*)b;
-				auto dh = t2->h - t1->h;
-				return dh != 0 ? dh : (t2->w - t1->w);
-			});
+				vec3_t tp[3];
+				tp[0] = p[i * 3 + 0] * scale;
+				tp[1] = p[i * 3 + 1] * scale;
+				tp[2] = p[i * 3 + 2] * scale;
 
-			std::vector<quad_t> quad(tris.size() >> 1);
+				tris[i].compute(tp[0], tp[1], tp[2]);
+			}
 
-			for (size_type i = 0; i < quad.size() - tris.size() % 2; i++)
-				quad[i].computeEdge(&tris[i * 2], &tris[i * 2 + 1]);
+			return lightmappack(tris, width, height, scale, margin, outUVs) == tris.size();
+		}
 
-			if (tris.size() % 2 > 0)
-				quad.push_back(quad_t(&(*tris.rbegin()), nullptr));
+		template<typename index_t = short>
+		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
+		{
+			return lightmappack(positions, indices, indexCount, sizeof(index_t), width, height, scale, margin, outVertices, outUVs);
+		}
 
+		template<typename index_t = short>
+		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
+		{
+			auto pos = (const vec3_t*)positions;
+			auto vertices = (vec3_t*)outVertices;
+
+			for (size_type i = 0; i < indexCount; i++, indices = (index_t*)(((char*)indices) + indexStride))
+				vertices[i] = pos[*indices];
+
+			return lightmappack(outVertices, indexCount, width, height, scale, margin, outUVs);
+		}
+
+	private:
+		static size_type lightmappack(std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, int margin)
+		{
 			value_t area = 0;
 
 			for (auto& it : quad)
@@ -475,6 +502,34 @@ namespace ray
 				processed++;
 			}
 
+			return processed;
+		}
+
+		static size_type lightmappack(const std::vector<triangle_t>& triangles, int width, int height, value_t scale, value_t scalefactor, int margin, value_t* outUVs)
+		{
+			std::vector<triangle_t> tris = triangles;
+
+			std::qsort(tris.data(), tris.size(), sizeof(triangle_t), [](const void* a, const void* b) -> int
+			{
+				auto t1 = (triangle_t*)a;
+				auto t2 = (triangle_t*)b;
+				auto dh = t2->h - t1->h;
+				return dh != 0 ? dh : (t2->w - t1->w);
+			});
+
+			std::vector<quad_t> quad(tris.size() >> 1);
+
+			for (size_type i = 0; i < quad.size() - tris.size() % 2; i++)
+				quad[i].computeEdge(&tris[i * 2], &tris[i * 2 + 1]);
+
+			if (tris.size() % 2 > 0)
+				quad.push_back(quad_t(&(*tris.rbegin()), nullptr));
+
+			auto processed = lightmappack(quad, width, height, scale, scalefactor, margin) * 2;
+
+			if (tris.size() % 2 > 0)
+				processed--;
+
 			if (outUVs)
 			{
 				vec2_t* uv = (vec2_t*)outUVs;
@@ -487,45 +542,32 @@ namespace ray
 				}
 			}
 
-			return processed * 2 * 3; // 2 triangle, 3 vertices
+			return processed;
 		}
 
-		static bool lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, int margin, value_t* outUVs)
+		static size_type lightmappack(const std::vector<triangle_t>& tris, int width, int height, value_t scale, int margin, value_t* outUVs)
 		{
 			value_t testScale = 1.0f;
-			size_type processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, 0);
-			int decrease = processed < vertexCount ? 0 : 1;
+			size_type processed = lightmappack(tris, width, height, scale, testScale, margin, 0);
 
-			if (decrease)
+			if (processed > tris.size())
 			{
-				while (!(processed < vertexCount))
+				for (std::uint8_t j = 0; processed > tris.size() && j < 16; j++)
 				{
-					testScale *= 0.99;
-					processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, 0);
+					testScale -= 0.022;
+					processed = lightmappack(tris, width, height, scale, testScale, margin, 0);
+				}
+			}
+			else
+			{
+				for (std::uint8_t j = 0; processed < tris.size() && j < 16; j++)
+				{
+					testScale += 0.022;
+					processed = lightmappack(tris, width, height, scale, testScale, margin, 0);
 				}
 			}
 
-			for (int j = 0; processed < vertexCount && j < 16; j++)
-			{
-				testScale += 0.022;
-				processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, 0);
-			}
-
-			processed = lightmappack(positions, vertexCount, width, height, scale, testScale, margin, outUVs);
-
-			return processed == vertexCount;
-		}
-
-		template<typename index_t = short>
-		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
-		{
-			auto pos = (const vec3_t*)positions;
-			auto vertices = (vec3_t*)outVertices;
-
-			for (size_type i = 0; i < indexCount; i++, indices = (index_t*)(((char*)indices) + indexStride))
-				vertices[i] = pos[*indices];
-
-			return lightmappack(outVertices, indexCount, width, height, scale, margin, outUVs);
+			return lightmappack(tris, width, height, scale, testScale, margin, outUVs);
 		}
 	};
 
