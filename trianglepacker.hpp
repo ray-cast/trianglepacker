@@ -680,14 +680,16 @@ namespace ray
 		static size_type lightmappack(const std::vector<quad_t>& quad, int width, int height, value_t scale, const vec2_t& margin, value_t* outUVs)
 		{
 			value_t testScale = 1.0f;
+			value_t testScaleLast = 1.0f;
 
 			size_type processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
 
 			if (processed >= quad.size())
 			{
-				for (std::uint8_t j = 0; processed >= quad.size() && j < 16; j++)
+				while (processed < quad.size())
 				{
-					testScale -= 0.005;
+					testScaleLast = testScale;
+					testScale += 0.005;
 					processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
 				}
 
@@ -695,10 +697,24 @@ namespace ray
 			}
 			else
 			{
-				for (std::uint8_t j = 0; processed < quad.size() && j < 16; j++)
+				while (processed < quad.size())
 				{
+					testScaleLast = testScale;
 					testScale += 0.005;
 					processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
+				}
+			}
+
+			auto testScaleDiff = (testScale - testScaleLast) / 16.0f;
+
+			for (std::uint8_t i = 0; i < 16; i++)
+			{
+				testScale -= testScaleDiff;
+				processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
+				if (processed < quad.size())
+				{
+					testScale += testScaleDiff;
+					break;
 				}
 			}
 
