@@ -221,6 +221,7 @@ namespace ray
 			template<typename T>
 			void compute(const Vector3<T>& v1, const Vector3<T>& v2, const Vector3<T>& v3) noexcept
 			{
+				// https://github.com/ands/trianglepacker
 				Vector3<T> tv[3];
 				tv[0] = v2 - v1;
 				tv[1] = v3 - v2;
