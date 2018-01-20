@@ -296,16 +296,14 @@ namespace ray
 				{
 					if (t1)
 					{
-						auto area = sqrt(t1->area());
-						edge.x = area;
-						edge.y = area;
+						edge.x = 2 << ((int)std::round(std::log2(t1->w)));
+						edge.y = 2 << ((int)std::round(std::log2(t1->h * 2)));
 					}
 
 					if (t2)
 					{
-						auto area = sqrt(t2->area());
-						edge.x = area;
-						edge.y = area;
+						edge.x = 2 << ((int)std::round(std::log2(t1->w)));
+						edge.y = 2 << ((int)std::round(std::log2(t1->h * 2)));
 					}
 				}
 			}
