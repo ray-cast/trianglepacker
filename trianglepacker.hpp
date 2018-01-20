@@ -278,11 +278,11 @@ namespace ray
 			{
 				uv[0] = Vector2<_Tx>(0, margin.y) + border;
 				uv[1] = Vector2<_Tx>(border.x, edge.y - border.x);
-				uv[2] = Vector2<_Tx>(edge.x - margin.x, edge.y) - border;
+				uv[2] = Vector2<_Tx>(edge.x, edge.y) - border;
 
 				uv[3] = Vector2<_Tx>(edge.x, edge.y - margin.y) - border;
 				uv[4] = Vector2<_Tx>(edge.x - border.x, border.y);
-				uv[5] = Vector2<_Tx>(margin.x, 0) + border;
+				uv[5] = Vector2<_Tx>(0, 0) + border;
 			}
 
 			void computeEdge() noexcept
