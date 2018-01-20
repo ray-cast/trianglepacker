@@ -19,7 +19,7 @@ std::vector<float2> uvs(vertices.size());
 
 if (!ray::uvmapper::lightmappack(
     // consecutive triangle positions
-    vertices.data(), vertices.size(), 
+    (float*)vertices.data(), vertices.size(), 
     // resolution
     512, 512, 
     // scale the vertices
@@ -27,7 +27,7 @@ if (!ray::uvmapper::lightmappack(
     // margin between all triangle
     1, 
     // output (a normalized uv coordinate for each input vertex):
-    uvs.data()))
+    (float*)uvs.data()))
 {
     std::cerr << "Failed to pack all triangles into the map!" << std::endl;
     return false;
@@ -35,12 +35,12 @@ if (!ray::uvmapper::lightmappack(
 
 // method 2
 // allocate buffer for each output vertex
-std::vector<float2> positions(indices.size());
+std::vector<float3> positions(indices.size());
 
 // allocate buffer for each output uv
 std::vector<float2> uvs(indices.size());
 
-//  allocate for each vertex count
+// allocate for vertex count
 std::size_t count = 0;
 
 if (!ray::uvmapper::lightmappack(
