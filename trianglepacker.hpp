@@ -246,9 +246,8 @@ namespace ray
 		};
 
 		template<typename _Tx, typename _Ty, typename std::enable_if_t<std::is_pointer_v<_Ty>>* = nullptr>
-		class Quad
+		struct Quad
 		{
-		public:
 			_Ty t1, t2;
 
 			Vector2<_Tx> edge;
@@ -616,13 +615,15 @@ namespace ray
 
 		static size_type lightmappack(const std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin, value_t* outUVs)
 		{
-			std::vector<quad_t> quad2 = quad;
+			std::vector<quad_t> quad2(quad.size());
+			std::memcpy(quad2.data(), quad.data(), quad.size() * sizeof(quad_t));
 			return lightmappack(quad2, width, height, scale, scalefactor, margin, outUVs);
 		}
 
 		static size_type lightmappack(const std::vector<triangle_t>& triangles, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin, value_t* outUVs)
 		{
-			std::vector<triangle_t> tris = triangles;
+			std::vector<triangle_t> tris(triangles.size());
+			std::memcpy(tris.data(), triangles.data(), triangles.size() * sizeof(triangle_t));
 
 			std::qsort(tris.data(), tris.size(), sizeof(triangle_t), [](const void* a, const void* b) -> int
 			{
