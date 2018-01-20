@@ -40,7 +40,7 @@ std::vector<float2> positions(indices.size());
 // allocate buffer for each output uv
 std::vector<float2> uvs(indices.size());
 
-//  allocate for vertex count
+// allocate for vertex count
 std::size_t count = 0;
 
 if (!ray::uvmapper::lightmappack(
