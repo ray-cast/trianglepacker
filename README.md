@@ -1,5 +1,11 @@
 # trianglepacker
-this library that help to packs triangles of a 3D mesh into a texture.
+trianglepacker.hpp is a C++11/17 single required source file, that help to packs triangles of a 3D mesh into a texture, 
+this method is a fast greedy algorithm, the output is looks like a blender's lightmappack, but the quality is not better than blender,
+
+this library can support rectangle pack, when part of input indices are converted from a quad to two triangles, 
+that two triangle become combiend and can result in a quad, see the below images.
+
+
 ![preview1.png](https://github.com/ray-cast/trianglepacker/raw/master/preview1.png)
 ![preview2.png](https://github.com/ray-cast/trianglepacker/raw/master/preview2.png)
 
@@ -10,6 +16,7 @@ this library that help to packs triangles of a 3D mesh into a texture.
 // allocate buffer for each output uv
 std::vector<float2> uvs(vertices.size());
 
+// method 1
 if (!ray::uvmapper::lightmappack(
     // consecutive triangle positions
     vertices.data(), vertices.size(), 
@@ -17,13 +24,34 @@ if (!ray::uvmapper::lightmappack(
     512, 512, 
     // scale the vertices
     1.0, 
-    // margin
+    // margin between all triangle
     1, 
     // output (a normalized uv coordinate for each input vertex):
     uvs.data()))
 {
     std::cerr << "Failed to pack all triangles into the map!" << std::endl;
     return false;
+}
+
+// method 2
+if (!ray::uvmapper::lightmappack(
+    // triangle positions
+    (float*)vertices.data(),
+    // indices buffer
+    indices.data(), indices.size(), 
+    // resolution
+    512, 512, 
+    // scale the vertices
+    1.0, 
+    // margin between all triangle and quad
+    1, 
+    // output (a new vertices buffer for each uv coordinate):
+    (float*)position.data(), 
+    // output (a normalized uv coordinate for each output vertex):
+    (float*)uvs.data()))
+{
+    std::cerr << "Failed to pack all triangles into the map!" << std::endl;
+    return 0;
 }
 ```
 
