@@ -274,24 +274,23 @@ namespace ray
 				uv[5] += offset;
 			}
 
-			void computeUV() noexcept
+			void computeUV(const Vector2<_Tx>& border) noexcept
 			{
-				uv[0] = Vector2<_Tx>(0, margin.y);
-				uv[1] = Vector2<_Tx>(0, edge.y);
-				uv[2] = Vector2<_Tx>(edge.x - margin.x, edge.y);
+				uv[0] = Vector2<_Tx>(0, margin.y) + border;
+				uv[1] = Vector2<_Tx>(border.x, edge.y - border.x);
+				uv[2] = Vector2<_Tx>(edge.x - margin.x, edge.y) - border;
 
-				uv[3] = Vector2<_Tx>(edge.x, edge.y - margin.y);
-				uv[4] = Vector2<_Tx>(edge.x, 0);
-				uv[5] = Vector2<_Tx>(margin.x, 0);
+				uv[3] = Vector2<_Tx>(edge.x, edge.y - margin.y) - border;
+				uv[4] = Vector2<_Tx>(edge.x - border.x, border.y);
+				uv[5] = Vector2<_Tx>(margin.x, 0) + border;
 			}
 
 			void computeEdge() noexcept
 			{
 				if (t1 && t2)
 				{
-					auto area = sqrt((t1->area() + t2->area()) / 2);
-					edge.x = area;
-					edge.y = area;
+					edge.x = 2 << ((int)std::round(std::log2((t1->w + t2->w) / 2)));
+					edge.y = 2 << ((int)std::round(std::log2((t1->h + t2->h))));
 				}
 				else
 				{
@@ -319,6 +318,45 @@ namespace ray
 			QuadNode() noexcept : _rect(0, 0, 1, 1) {}
 			QuadNode(const Vector4<_Tx>& rect) noexcept : _rect(rect) {}
 
+			QuadNode* insert(Quad<_Tx, _Ty>& q, bool write = true)
+			{
+				if (_child[0] && _child[1])
+				{
+					QuadNode<_Tx, _Ty>* c = _child[0]->insert(q);
+					return c ? c : _child[1]->insert(q);
+				}
+				else
+				{
+					if (q.edge.x > _rect.z || q.edge.y > _rect.w)
+						return nullptr;
+
+					_child[0] = std::make_unique<QuadNode<_Tx, _Ty>>();
+					_child[1] = std::make_unique<QuadNode<_Tx, _Ty>>();
+
+					_Tx dw = _rect.z - q.edge.x;
+					_Tx dh = _rect.w - q.edge.y;
+
+					if (dw < dh)
+					{
+						_child[0]->_rect = Vector4<_Tx>(_rect.x + q.edge.x, _rect.y, _rect.z - q.edge.x, q.edge.y);
+						_child[1]->_rect = Vector4<_Tx>(_rect.x, _rect.y + q.edge.y, _rect.z, _rect.w - q.edge.y);
+					}
+					else
+					{
+						_child[0]->_rect = Vector4<_Tx>(_rect.x, _rect.y + q.edge.y, q.edge.x, _rect.w - q.edge.y);
+						_child[1]->_rect = Vector4<_Tx>(_rect.x + q.edge.x, _rect.y, _rect.z - q.edge.x, _rect.w);
+					}
+
+					if (write)
+					{
+						Vector2<_Tx> offset(_rect.x, _rect.y);
+						q.translate(offset);
+					}
+
+					return this;
+				}
+			}
+
 			QuadNode* insert(Quad<_Tx, _Ty>& q, const Vector2<_Tx>& margin, bool write = true)
 			{
 				if (_child[0] && _child[1])
@@ -330,17 +368,6 @@ namespace ray
 				{
 					if (q.edge.x > _rect.z || q.edge.y > _rect.w)
 						return nullptr;
-
-					if (q.edge.x == _rect.z && q.edge.y == _rect.w)
-					{
-						if (write)
-						{
-							Vector2<_Tx> offset(_rect.x, _rect.y);
-							q.translate(offset);
-						}
-
-						return this;
-					}
 
 					_child[0] = std::make_unique<QuadNode<_Tx, _Ty>>();
 					_child[1] = std::make_unique<QuadNode<_Tx, _Ty>>();
@@ -453,18 +480,18 @@ namespace ray
 			return lightmappack(tris, width, height, scale, margin, outUVs) == tris.size();
 		}
 
-		template<typename index_t = short>
+		template<typename index_t = std::uint16_t, typename = std::enable_if_t<std::is_unsigned_v<index_t>>>
 		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
 		{
 			return lightmappack(positions, indices, indexCount, sizeof(index_t), width, height, scale, margin, outVertices, outUVs);
 		}
 
-		template<typename index_t = short>
+		template<typename index_t = std::uint16_t, typename = std::enable_if_t<std::is_unsigned_v<index_t>>>
 		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
 		{
 			auto p = (const vec3_t*)positions;
 			auto vertices = (vec3_t*)outVertices;
-			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
+			auto border = vec2_t((value_t)margin / width / 2, (value_t)margin / height / 2);
 
 			std::vector<triangle_t> tris(indexCount / 3);
 			std::vector<quad_t> quad(indexCount / 6);
@@ -525,12 +552,15 @@ namespace ray
 				}
 			}
 
-			std::sort(quad.begin(), quad.end(), [](const quad_t& a, const quad_t& b)->bool
+			std::qsort(quad.data(), quad.size(), sizeof(quad_t), [](const void* a, const void* b) -> int
 			{
-				return a.area() > b.area();
+				auto t1 = (quad_t*)a;
+				auto t2 = (quad_t*)b;
+				auto dh = t2->edge.y - t1->edge.y;
+				return dh != 0 ? dh : (t2->edge.x - t1->edge.x);
 			});
 
-			return lightmappack(quad, width, height, scale, margin, outUVs) == quad.size();
+			return lightmappack(quad, width, height, scale, border, outUVs) == quad.size();
 		}
 
 	private:
@@ -546,7 +576,7 @@ namespace ray
 			for (auto& it : quad)
 			{
 				it.edge /= area;
-				it.computeUV();
+				it.computeUV(margin);
 			}
 
 			quad_node_t root;
@@ -555,7 +585,7 @@ namespace ray
 
 			for (std::size_t i = 0; i < quad.size(); i++)
 			{
-				if (!root.insert(quad[i], margin, write))
+				if (!root.insert(quad[i], write))
 					return (i + 1);
 			}
 
@@ -647,31 +677,32 @@ namespace ray
 			return lightmappack(tris, width, height, scale, testScale, border, outUVs);
 		}
 
-		static size_type lightmappack(const std::vector<quad_t>& quad, int width, int height, value_t scale, int margin, value_t* outUVs)
+		static size_type lightmappack(const std::vector<quad_t>& quad, int width, int height, value_t scale, const vec2_t& margin, value_t* outUVs)
 		{
 			value_t testScale = 1.0f;
-			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
 
-			size_type processed = lightmappack(quad, width, height, scale, testScale, border, 0);
+			size_type processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
 
-			if (processed > quad.size())
+			if (processed >= quad.size())
 			{
-				for (std::uint8_t j = 0; processed > quad.size() && j < 16; j++)
+				for (std::uint8_t j = 0; processed >= quad.size() && j < 16; j++)
 				{
-					testScale -= 0.022;
-					processed = lightmappack(quad, width, height, scale, testScale, border, 0);
+					testScale -= 0.005;
+					processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
 				}
+
+				testScale += 0.005;
 			}
 			else
 			{
 				for (std::uint8_t j = 0; processed < quad.size() && j < 16; j++)
 				{
-					testScale += 0.022;
-					processed = lightmappack(quad, width, height, scale, testScale, border, 0);
+					testScale += 0.005;
+					processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
 				}
 			}
 
-			return lightmappack(quad, width, height, scale, testScale, border, outUVs);
+			return lightmappack(quad, width, height, scale, testScale, margin, outUVs);
 		}
 	};
 
