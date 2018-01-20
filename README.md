@@ -1,4 +1,4 @@
-# trianglepacker
+# Triangle Packer
 trianglepacker.hpp is a C++11/17 single required source file, that help to packs triangles of a 3D mesh into a texture, 
 this method is a fast greedy algorithm, the output is looks like a blender's lightmappack, and the quality is near the blender.
 
