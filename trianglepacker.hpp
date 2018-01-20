@@ -479,13 +479,13 @@ namespace ray
 		}
 
 		template<typename index_t = std::uint16_t, typename = std::enable_if_t<std::is_unsigned_v<index_t>>>
-		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
+		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs, size_type& outVerticeCount)
 		{
-			return lightmappack(positions, indices, indexCount, sizeof(index_t), width, height, scale, margin, outVertices, outUVs);
+			return lightmappack(positions, indices, indexCount, sizeof(index_t), width, height, scale, margin, outVertices, outUVs, outVerticeCount);
 		}
 
 		template<typename index_t = std::uint16_t, typename = std::enable_if_t<std::is_unsigned_v<index_t>>>
-		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs)
+		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs, size_type& outVerticeCount)
 		{
 			auto p = (const vec3_t*)positions;
 			auto vertices = (vec3_t*)outVertices;
@@ -557,6 +557,8 @@ namespace ray
 				auto dh = t2->edge.y - t1->edge.y;
 				return dh != 0 ? dh : (t2->edge.x - t1->edge.x);
 			});
+
+			outVerticeCount = vertices - (vec3_t*)outVertices;
 
 			return lightmappack(quad, width, height, scale, border, outUVs) == quad.size();
 		}

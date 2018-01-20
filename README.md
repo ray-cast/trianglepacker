@@ -13,10 +13,10 @@ that two triangle become combiend and can result in a quad, see the below images
 ```c++
 #include "trianglepacker.hpp"
 
+// method 1
 // allocate buffer for each output uv
 std::vector<float2> uvs(vertices.size());
 
-// method 1
 if (!ray::uvmapper::lightmappack(
     // consecutive triangle positions
     vertices.data(), vertices.size(), 
@@ -34,6 +34,15 @@ if (!ray::uvmapper::lightmappack(
 }
 
 // method 2
+// allocate buffer for each output vertex
+std::vector<float2> positions(indices.size());
+
+// allocate buffer for each output uv
+std::vector<float2> uvs(indices.size());
+
+//  allocate for each vertex count
+std::size_t count = 0;
+
 if (!ray::uvmapper::lightmappack(
     // triangle positions
     (float*)vertices.data(),
@@ -46,9 +55,11 @@ if (!ray::uvmapper::lightmappack(
     // margin between all triangle and quad
     1, 
     // output (a new vertices buffer for each uv coordinate):
-    (float*)position.data(), 
+    (float*)positions.data(), 
     // output (a normalized uv coordinate for each output vertex):
-    (float*)uvs.data()))
+    (float*)uvs.data(),
+    // output (a count of vertex that has been written)
+    count))
 {
     std::cerr << "Failed to pack all triangles into the map!" << std::endl;
     return 0;
