@@ -678,24 +678,43 @@ namespace ray
 		static size_type lightmappack(const std::vector<triangle_t>& tris, int width, int height, value_t scale, int margin, value_t* outUVs)
 		{
 			value_t testScale = 1.0f;
+			value_t testScaleLast = 1.0f;
+
 			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
 
 			size_type processed = lightmappack(tris, width, height, scale, testScale, border, 0);
 
-			if (processed > tris.size())
+			if (processed >= tris.size())
 			{
-				for (std::uint8_t j = 0; processed > tris.size() && j < 16; j++)
+				while (processed < quad.size())
 				{
-					testScale -= 0.022;
+					testScaleLast = testScale;
+					testScale += 0.005;
 					processed = lightmappack(tris, width, height, scale, testScale, border, 0);
 				}
+
+				testScale += 0.005;
 			}
 			else
 			{
-				for (std::uint8_t j = 0; processed < tris.size() && j < 16; j++)
+				while (processed < quad.size())
 				{
-					testScale += 0.022;
+					testScaleLast = testScale;
+					testScale += 0.005;
 					processed = lightmappack(tris, width, height, scale, testScale, border, 0);
+				}
+			}
+
+			auto testScaleDiff = (testScale - testScaleLast) / 16.0f;
+
+			for (std::uint8_t i = 0; i < 16; i++)
+			{
+				testScale -= testScaleDiff;
+				processed = lightmappack(tris, width, height, scale, testScale, border, 0);
+				if (processed < tris.size())
+				{
+					testScale += testScaleDiff;
+					break;
 				}
 			}
 
