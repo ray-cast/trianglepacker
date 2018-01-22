@@ -22,8 +22,6 @@ if (!ray::uvmapper::lightmappack(
     (float*)vertices.data(), vertices.size(), 
     // resolution
     512, 512, 
-    // scale the vertices
-    1.0, 
     // margin between all triangle
     1, 
     // output (a normalized uv coordinate for each input vertex):
@@ -34,14 +32,13 @@ if (!ray::uvmapper::lightmappack(
 }
 
 // method 2
-// allocate buffer for each output vertex
-std::vector<float3> positions(indices.size());
-
-// allocate buffer for each output uv
-std::vector<float2> uvs(indices.size());
 
 // allocate for vertex count
 std::size_t count = 0;
+
+std::vector<std::uint16_t> remap(indices.size()); // allocate buffer for each vertex index
+std::vector<float2> uvs(indices.size()); // allocate buffer for each output uv
+std::vector<std::uint16_t> outIndices(indices.size()); // allocate buffer for each output uv
 
 if (!ray::uvmapper::lightmappack(
     // triangle positions
@@ -50,20 +47,31 @@ if (!ray::uvmapper::lightmappack(
     indices.data(), indices.size(), 
     // resolution
     512, 512, 
-    // scale the vertices
-    1.0, 
     // margin between all triangle and quad
     1, 
-    // output (a new vertices buffer for each uv coordinate):
-    (float*)positions.data(), 
+    // output (a pointer to the array of remapped vertices):
+    remap.data(), 
     // output (a normalized uv coordinate for each output vertex):
     (float*)uvs.data(),
+    // output (a index buffer for each ouput uv):
+    outIndices.data()
     // output (a count of vertex that has been written)
     count))
 {
     std::cerr << "Failed to pack all triangles into the map!" << std::endl;
     return 0;
 }
+
+std::vector<Vertex> newVertices(count);
+
+for (std::size_t i = 0; i < count; i++)
+{
+    newVertices[i] = vertices[remap[i]];
+    newVertices[i].uv = uvs[i];
+}
+
+vertices = newVertices;
+indices = outIndices;
 ```
 
 [License (MIT)](https://raw.githubusercontent.com/ray-cast/trianglepacker/master/LICENSE.txt)

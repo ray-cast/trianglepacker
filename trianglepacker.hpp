@@ -1,19 +1,19 @@
 // MIT License
-// 
+//
 // Copyright (c) 2018 Rui. All rights reserved.
-// 
+//
 // https://github.com/ray-cast/trianglepacker
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -457,88 +457,75 @@ namespace ray
 		basic_uvmapper(const basic_uvmapper&) = delete;
 		basic_uvmapper& operator=(basic_uvmapper&) = delete;
 
-		static bool lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, value_t scalefactor, int margin, value_t* outUVs)
+		static bool lightmappack(const value_t* vertices, size_type vertexCount, int width, int height, int margin, value_t* outUVs)
 		{
-			const vec3_t* p = (const vec3_t*)positions;
+			return lightmappack(vertices, vertexCount, width, height, margin, 0, outUVs);
+		}
+
+		static bool lightmappack(const value_t* vertices, size_type vertexCount, int width, int height, int margin, value_t scalefactor, value_t* outUVs)
+		{
+			const vec3_t* p = (const vec3_t*)vertices;
 
 			std::vector<triangle_t> tris(vertexCount / 3);
 
 			for (size_type i = 0; i < tris.size(); i++)
 			{
-				vec3_t tp[3];
-				tp[0] = p[i * 3 + 0] * scale;
-				tp[1] = p[i * 3 + 1] * scale;
-				tp[2] = p[i * 3 + 2] * scale;
+				const vec3_t& v1 = p[i * 3 + 0];
+				const vec3_t& v2 = p[i * 3 + 1];
+				const vec3_t& v3 = p[i * 3 + 2];
 
 				tris[i].indices[0] = i * 3 + 0;
 				tris[i].indices[1] = i * 3 + 1;
 				tris[i].indices[2] = i * 3 + 2;
-				tris[i].compute(tp[0], tp[1], tp[2]);
+				tris[i].compute(v1, v2, v3);
 			}
 
-			return lightmappack(tris, width, height, scale, scalefactor, margin, outUVs) == tris.size();
-		}
+			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
 
-		static bool lightmappack(const value_t* positions, size_type vertexCount, int width, int height, value_t scale, int margin, value_t* outUVs)
-		{
-			const vec3_t* p = (const vec3_t*)positions;
-
-			std::vector<triangle_t> tris(vertexCount / 3);
-
-			for (size_type i = 0; i < tris.size(); i++)
-			{
-				vec3_t tp[3];
-				tp[0] = p[i * 3 + 0] * scale;
-				tp[1] = p[i * 3 + 1] * scale;
-				tp[2] = p[i * 3 + 2] * scale;
-
-				tris[i].indices[0] = i * 3 + 0;
-				tris[i].indices[1] = i * 3 + 1;
-				tris[i].indices[2] = i * 3 + 2;
-				tris[i].compute(tp[0], tp[1], tp[2]);
-			}
-
-			return lightmappack(tris, width, height, scale, margin, outUVs) == tris.size();
+			if (scalefactor > 0)
+				return lightmappack2(tris, width, height, border, scalefactor, outUVs) == tris.size();
+			else
+				return lightmappack2(tris, width, height, border, outUVs) == tris.size();
 		}
 
 		template<typename index_t = std::uint16_t, typename = std::enable_if_t<std::is_unsigned_v<index_t>>>
-		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs, size_type& outVerticeCount)
+		static bool lightmappack(const value_t* vertices, const index_t* indices, size_type indexCount, int width, int height, int margin, index_t* outRemap, value_t* outUVs, index_t* outIndices, size_type& outVerticeCount)
 		{
-			return lightmappack(positions, indices, indexCount, sizeof(index_t), width, height, scale, margin, outVertices, outUVs, outVerticeCount);
-		}
-
-		template<typename index_t = std::uint16_t, typename = std::enable_if_t<std::is_unsigned_v<index_t>>>
-		static bool lightmappack(const value_t* positions, const index_t* indices, size_type indexCount, size_type indexStride, int width, int height, value_t scale, int margin, value_t* outVertices, value_t* outUVs, size_type& outVerticeCount)
-		{
-			auto p = (const vec3_t*)positions;
-			auto vertices = (vec3_t*)outVertices;
+			auto p = (const vec3_t*)vertices;
+			auto remap = outRemap;
 			auto border = vec2_t((value_t)margin / width / 2, (value_t)margin / height / 2);
 
-			std::vector<triangle_t> tris(indexCount / 3);
 			std::vector<quad_t> quad(indexCount / 6);
+			std::vector<triangle_t> tris(indexCount / 3);
 
 			for (size_type index = 0, i = 0; i < quad.size(); i++)
 			{
-				auto v1 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
-				auto v2 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
-				auto v3 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
+				auto v1 = *indices; indices++;
+				auto v2 = *indices; indices++;
+				auto v3 = *indices; indices++;
 
-				auto v4 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
-				auto v5 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
-				auto v6 = *indices; indices = (index_t*)(((char*)indices) + indexStride);
+				auto v4 = *indices; indices++;
+				auto v5 = *indices; indices++;
+				auto v6 = *indices; indices++;
 
 				if (v3 == v4 && v1 == v6)
 				{
-					*vertices = p[v1]; vertices++;
-					*vertices = p[v2]; vertices++;
-					*vertices = p[v3]; vertices++;
-					*vertices = p[v5]; vertices++;
+					*remap = v1; remap++;
+					*remap = v2; remap++;
+					*remap = v3; remap++;
+					*remap = v5; remap++;
+					*outIndices = index + 0; outIndices++;
+					*outIndices = index + 1; outIndices++;
+					*outIndices = index + 2; outIndices++;
+					*outIndices = index + 2; outIndices++;
+					*outIndices = index + 3; outIndices++;
+					*outIndices = index + 0; outIndices++;
 
 					vec3_t tp[4];
-					tp[0] = p[v1] * scale;
-					tp[1] = p[v2] * scale;
-					tp[2] = p[v3] * scale;
-					tp[3] = p[v5] * scale;
+					tp[0] = p[v1];
+					tp[1] = p[v2];
+					tp[2] = p[v3];
+					tp[3] = p[v5];
 
 					tris[i * 2 + 0] = triangle_t(tp[0], tp[1], tp[2], index + 0, index + 1, index + 2);
 					tris[i * 2 + 1] = triangle_t(tp[2], tp[3], tp[0], index + 2, index + 3, index + 0);
@@ -549,20 +536,26 @@ namespace ray
 				}
 				else
 				{
-					*vertices = p[v1]; vertices++;
-					*vertices = p[v2]; vertices++;
-					*vertices = p[v3]; vertices++;
-					*vertices = p[v4]; vertices++;
-					*vertices = p[v5]; vertices++;
-					*vertices = p[v6]; vertices++;
+					*remap = v1; remap++;
+					*remap = v2; remap++;
+					*remap = v3; remap++;
+					*remap = v4; remap++;
+					*remap = v5; remap++;
+					*remap = v6; remap++;
+					*outIndices = index + 0; outIndices++;
+					*outIndices = index + 1; outIndices++;
+					*outIndices = index + 2; outIndices++;
+					*outIndices = index + 3; outIndices++;
+					*outIndices = index + 4; outIndices++;
+					*outIndices = index + 5; outIndices++;
 
 					vec3_t tp[6];
-					tp[0] = p[v1] * scale;
-					tp[1] = p[v2] * scale;
-					tp[2] = p[v3] * scale;
-					tp[3] = p[v4] * scale;
-					tp[4] = p[v5] * scale;
-					tp[5] = p[v6] * scale;
+					tp[0] = p[v1];
+					tp[1] = p[v2];
+					tp[2] = p[v3];
+					tp[3] = p[v4];
+					tp[4] = p[v5];
+					tp[5] = p[v6];
 
 					tris[i * 2 + 0] = triangle_t(tp[0], tp[1], tp[2], index + 0, index + 1, index + 2);
 					tris[i * 2 + 1] = triangle_t(tp[3], tp[4], tp[5], index + 3, index + 4, index + 5);
@@ -581,13 +574,18 @@ namespace ray
 				return dh != 0 ? dh : (t2->edge.x - t1->edge.x);
 			});
 
-			outVerticeCount = vertices - (vec3_t*)outVertices;
+			auto processed = lightmappack2(quad, width, height, border, outUVs);
 
-			return lightmappack(quad, width, height, scale, border, outUVs) == quad.size();
+			if (processed == quad.size())
+				outVerticeCount = remap - outRemap;
+			else
+				outVerticeCount = 0;
+
+			return processed == quad.size();
 		}
 
 	private:
-		static size_type lightmappack(std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin, value_t* outUVs)
+		static size_type lightmappack2(std::vector<quad_t>& quad, int width, int height, const vec2_t& margin, value_t scalefactor, value_t* outUVs)
 		{
 			value_t area = 0;
 
@@ -637,14 +635,14 @@ namespace ray
 			return quad.size();
 		}
 
-		static size_type lightmappack(const std::vector<quad_t>& quad, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin, value_t* outUVs)
+		static size_type lightmappack2(const std::vector<quad_t>& quad, int width, int height, const vec2_t& margin, value_t scalefactor, value_t* outUVs)
 		{
 			std::vector<quad_t> quad2(quad.size());
 			std::memcpy(quad2.data(), quad.data(), quad.size() * sizeof(quad_t));
-			return lightmappack(quad2, width, height, scale, scalefactor, margin, outUVs);
+			return lightmappack2(quad2, width, height, margin, scalefactor, outUVs);
 		}
 
-		static size_type lightmappack(const std::vector<triangle_t>& triangles, int width, int height, value_t scale, value_t scalefactor, const vec2_t& margin, value_t* outUVs)
+		static size_type lightmappack2(const std::vector<triangle_t>& triangles, int width, int height, const vec2_t& margin, value_t scalefactor, value_t* outUVs)
 		{
 			std::vector<triangle_t> tris(triangles.size());
 			std::memcpy(tris.data(), triangles.data(), triangles.size() * sizeof(triangle_t));
@@ -670,38 +668,37 @@ namespace ray
 			if (tris.size() % 2 > 0)
 				quad.push_back(quad_t(&(*tris.rbegin()), nullptr));
 
-			auto processed = lightmappack(quad, width, height, scale, scalefactor, margin, outUVs) * 2;
+			auto processed = lightmappack2(quad, width, height, margin, scalefactor, outUVs) * 2;
 
 			return tris.size() % 2 > 0 ? processed-- : processed;
 		}
 
-		static size_type lightmappack(const std::vector<triangle_t>& tris, int width, int height, value_t scale, int margin, value_t* outUVs)
+		template<typename T, typename = std::enable_if_t<std::is_same_v<T, quad_t> || std::is_same_v<T, triangle_t>>>
+		static size_type lightmappack2(const std::vector<T>& data, int width, int height, const vec2_t& margin, value_t* outUVs)
 		{
 			value_t testScale = 1.0f;
 			value_t testScaleLast = 1.0f;
 
-			auto border = vec2_t((value_t)margin / width, (value_t)margin / height);
+			auto processed = lightmappack2(data, width, height, margin, testScale, 0);
 
-			size_type processed = lightmappack(tris, width, height, scale, testScale, border, 0);
-
-			if (processed >= tris.size())
+			if (processed >= data.size())
 			{
-				while (processed < quad.size())
+				while (processed < data.size())
 				{
 					testScaleLast = testScale;
 					testScale += 0.005;
-					processed = lightmappack(tris, width, height, scale, testScale, border, 0);
+					processed = lightmappack2(data, width, height, margin, testScale, 0);
 				}
 
 				testScale += 0.005;
 			}
 			else
 			{
-				while (processed < quad.size())
+				while (processed < data.size())
 				{
 					testScaleLast = testScale;
 					testScale += 0.005;
-					processed = lightmappack(tris, width, height, scale, testScale, border, 0);
+					processed = lightmappack2(data, width, height, margin, testScale, 0);
 				}
 			}
 
@@ -710,59 +707,15 @@ namespace ray
 			for (std::uint8_t i = 0; i < 16; i++)
 			{
 				testScale -= testScaleDiff;
-				processed = lightmappack(tris, width, height, scale, testScale, border, 0);
-				if (processed < tris.size())
+				processed = lightmappack2(data, width, height, margin, testScale, 0);
+				if (processed < data.size())
 				{
 					testScale += testScaleDiff;
 					break;
 				}
 			}
 
-			return lightmappack(tris, width, height, scale, testScale, border, outUVs);
-		}
-
-		static size_type lightmappack(const std::vector<quad_t>& quad, int width, int height, value_t scale, const vec2_t& margin, value_t* outUVs)
-		{
-			value_t testScale = 1.0f;
-			value_t testScaleLast = 1.0f;
-
-			size_type processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
-
-			if (processed >= quad.size())
-			{
-				while (processed < quad.size())
-				{
-					testScaleLast = testScale;
-					testScale += 0.005;
-					processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
-				}
-
-				testScale += 0.005;
-			}
-			else
-			{
-				while (processed < quad.size())
-				{
-					testScaleLast = testScale;
-					testScale += 0.005;
-					processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
-				}
-			}
-
-			auto testScaleDiff = (testScale - testScaleLast) / 16.0f;
-
-			for (std::uint8_t i = 0; i < 16; i++)
-			{
-				testScale -= testScaleDiff;
-				processed = lightmappack(quad, width, height, scale, testScale, margin, 0);
-				if (processed < quad.size())
-				{
-					testScale += testScaleDiff;
-					break;
-				}
-			}
-
-			return lightmappack(quad, width, height, scale, testScale, margin, outUVs);
+			return lightmappack2(data, width, height, margin, testScale, outUVs);
 		}
 	};
 
