@@ -534,6 +534,32 @@ namespace ray
 
 					quad[i] = quad_t(&tris[i * 2], &tris[i * 2 + 1]);
 				}
+				else if (v1 == v4 && v3 == v5)
+				{
+					*remap = v1; remap++;
+					*remap = v2; remap++;
+					*remap = v3; remap++;
+					*remap = v6; remap++;
+					*outIndices = index + 0; outIndices++;
+					*outIndices = index + 1; outIndices++;
+					*outIndices = index + 2; outIndices++;
+					*outIndices = index + 2; outIndices++;
+					*outIndices = index + 3; outIndices++;
+					*outIndices = index + 0; outIndices++;
+
+					vec3_t tp[4];
+					tp[0] = p[v1];
+					tp[1] = p[v2];
+					tp[2] = p[v3];
+					tp[3] = p[v5];
+
+					tris[i * 2 + 0] = triangle_t(tp[0], tp[1], tp[2], index + 0, index + 1, index + 2);
+					tris[i * 2 + 1] = triangle_t(tp[2], tp[3], tp[0], index + 2, index + 3, index + 0);
+
+					index += 4;
+
+					quad[i] = quad_t(&tris[i * 2], &tris[i * 2 + 1]);
+				}
 				else
 				{
 					*remap = v1; remap++;
